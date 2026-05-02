@@ -1,6 +1,7 @@
 const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } = require('electron');
 const path = require('path');
 const fs = require('fs');
+const { execFileSync } = require('child_process');
 
 const MIN_WIDTH = 300;
 const MIN_HEIGHT = 200;
@@ -13,6 +14,11 @@ let store = {};
 let isQuitting = false;
 
 const appIcon = path.join(__dirname, '..', 'build', 'icon.ico');
+const hiddenStartupArg = '--hidden';
+const startupRegistryKey = 'HKCU\\Software\\Microsoft\\Windows\\CurrentVersion\\Run';
+const startupRegistryName = 'EasyToDo';
+
+app.setAppUserModelId('com.easytodo.desktop');
 
 function dateKey(date = new Date()) {
   const year = date.getFullYear();
@@ -62,21 +68,125 @@ function broadcastState() {
   }
 }
 
-function getStartupSettings() {
+function getLoginItemOptions() {
+  const args = app.isPackaged
+    ? [hiddenStartupArg]
+    : [app.getAppPath(), hiddenStartupArg];
+
   return {
-    openAtLogin: app.getLoginItemSettings().openAtLogin
+    args,
+    name: 'EasyToDo',
+    path: process.execPath
+  };
+}
+
+function getLegacyLoginItemOptions() {
+  return {
+    name: 'EasyToDo',
+    path: process.execPath
+  };
+}
+
+function quoteCommandPart(part) {
+  return `"${String(part).replace(/"/g, '')}"`;
+}
+
+function getWindowsStartupCommand() {
+  const parts = app.isPackaged
+    ? [process.execPath, hiddenStartupArg]
+    : [process.execPath, app.getAppPath(), hiddenStartupArg];
+
+  return parts.map(quoteCommandPart).join(' ');
+}
+
+function getWindowsRegistryStartup() {
+  try {
+    const output = execFileSync('reg.exe', [
+      'query',
+      startupRegistryKey,
+      '/v',
+      startupRegistryName
+    ], { encoding: 'utf8', windowsHide: true });
+
+    return output.includes(startupRegistryName);
+  } catch (_error) {
+    return false;
+  }
+}
+
+function setWindowsRegistryStartup(openAtLogin) {
+  if (openAtLogin) {
+    execFileSync('reg.exe', [
+      'add',
+      startupRegistryKey,
+      '/v',
+      startupRegistryName,
+      '/t',
+      'REG_SZ',
+      '/d',
+      getWindowsStartupCommand(),
+      '/f'
+    ], { windowsHide: true });
+    return;
+  }
+
+  try {
+    execFileSync('reg.exe', [
+      'delete',
+      startupRegistryKey,
+      '/v',
+      startupRegistryName,
+      '/f'
+    ], { windowsHide: true });
+  } catch (_error) {
+    // Deleting a missing startup item is already the desired final state.
+  }
+}
+
+function getStartupSettings() {
+  const options = getLoginItemOptions();
+  const legacyOptions = getLegacyLoginItemOptions();
+  if (process.platform === 'win32') {
+    return {
+      openAtLogin: getWindowsRegistryStartup()
+    };
+  }
+
+  return {
+    openAtLogin: app.getLoginItemSettings(options).openAtLogin
+      || app.getLoginItemSettings(legacyOptions).openAtLogin
   };
 }
 
 function setOpenAtLogin(openAtLogin) {
+  const options = getLoginItemOptions();
+  const legacyOptions = getLegacyLoginItemOptions();
+
+  if (process.platform === 'win32') {
+    setWindowsRegistryStartup(openAtLogin);
+    updateTrayMenu();
+    return getStartupSettings();
+  }
+
+  app.setLoginItemSettings({
+    openAtLogin: false,
+    ...legacyOptions
+  });
+
   app.setLoginItemSettings({
     openAtLogin,
     openAsHidden: true,
-    name: 'EasyToDo',
-    path: process.execPath
+    ...options
   });
   updateTrayMenu();
   return getStartupSettings();
+}
+
+function shouldStartHidden() {
+  const loginSettings = app.getLoginItemSettings(getLoginItemOptions());
+  return process.argv.includes(hiddenStartupArg)
+    || loginSettings.wasOpenedAtLogin
+    || loginSettings.wasOpenedAsHidden;
 }
 
 function showMainWindow() {
@@ -225,8 +335,8 @@ function updateTrayMenu() {
 app.whenReady().then(() => {
   storePath = path.join(app.getPath('userData'), 'tasks.json');
   readStore();
-  createWindow();
   createTray();
+  createWindow({ showOnReady: !shouldStartHidden() });
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
