@@ -1,6 +1,6 @@
 # EasyToDo
 
-一款基于 Electron 的桌面待办清单。窗口默认置顶、无边框、半透明，支持拖拽移动、调整大小、最小化到系统托盘、每日任务持久化和历史日历查看。
+一款基于 Electron 的桌面待办清单。应用启动后默认进入系统托盘，不显示任务栏图标；从托盘打开窗口后仍保持置顶、无边框、半透明，支持拖拽移动、调整大小、每日任务持久化和历史日历查看。
 
 ## 运行
 
@@ -17,9 +17,13 @@ npm.cmd start
 npm.cmd run dist
 ```
 
-生成的安装包位于 `dist/EasyToDo Setup 1.0.0.exe`。
+生成的安装包位于 `dist/EasyToDo Setup 1.0.1.exe`。
 
-仓库中的 `release/EasyToDo Setup 1.0.0.exe` 是已打包好的 Windows 安装程序。
+仓库中的 `release/EasyToDo Setup 1.0.1.exe` 是已打包好的 Windows 安装程序。
+
+## 设置
+
+主窗口顶部的“设置”按钮和托盘菜单都可以开启或关闭“开机自启”。开启后，EasyToDo 会在系统启动时自动进入托盘。
 
 ## 数据存储
 

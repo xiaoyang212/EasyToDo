@@ -8,6 +8,8 @@ contextBridge.exposeInMainWorld('todoApi', {
   minimizeToTray: () => ipcRenderer.invoke('window:minimize-to-tray'),
   openHistory: () => ipcRenderer.invoke('window:open-history'),
   closeHistory: () => ipcRenderer.invoke('window:close-history'),
+  getStartupSettings: () => ipcRenderer.invoke('settings:get-startup'),
+  setOpenAtLogin: (enabled) => ipcRenderer.invoke('settings:set-open-at-login', enabled),
   onTasksUpdated: (callback) => {
     const listener = (_event, state) => callback(state);
     ipcRenderer.on('tasks:updated', listener);

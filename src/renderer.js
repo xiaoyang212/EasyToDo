@@ -5,6 +5,8 @@ const weekdayNames = ['星期日', '星期一', '星期二', '星期三', '星�
 const isHistoryView = new URLSearchParams(window.location.search).get('view') === 'history';
 
 let state = { today: toDateKey(new Date()), tasksByDate: {} };
+let settings = { openAtLogin: false };
+let settingsOpen = false;
 let selectedMonth = firstDayOfMonth(new Date());
 let selectedDate = state.today;
 
@@ -78,9 +80,10 @@ function renderToday() {
 
   const actions = document.createElement('div');
   actions.className = 'window-actions no-drag';
+  const settingsButton = createButton('设置', 'text-button', '打开设置');
   const historyButton = createButton('历史', 'text-button', '查看历史记录');
   const minimizeButton = createButton('−', 'icon-button', '最小化到托盘');
-  actions.append(historyButton, minimizeButton);
+  actions.append(settingsButton, historyButton, minimizeButton);
   header.append(titleGroup, actions);
 
   const list = document.createElement('section');
@@ -105,7 +108,14 @@ function renderToday() {
   `;
 
   app.append(header, list, form);
+  if (settingsOpen) {
+    app.append(renderSettingsPanel());
+  }
 
+  settingsButton.addEventListener('click', () => {
+    settingsOpen = true;
+    renderToday();
+  });
   historyButton.addEventListener('click', () => api.openHistory());
   minimizeButton.addEventListener('click', () => api.minimizeToTray());
   form.addEventListener('submit', async (event) => {
@@ -118,6 +128,48 @@ function renderToday() {
     await api.addTask(text, state.today);
     input.value = '';
   });
+}
+
+function renderSettingsPanel() {
+  const overlay = document.createElement('section');
+  overlay.className = 'settings-overlay no-drag';
+  overlay.innerHTML = `
+    <div class="settings-panel">
+      <div class="settings-heading">
+        <div>
+          <span class="eyebrow">Settings</span>
+          <h2>设置</h2>
+        </div>
+        <button type="button" class="icon-button" title="关闭设置">×</button>
+      </div>
+      <label class="setting-row">
+        <span>
+          <strong>开机自启</strong>
+          <small>开机后自动进入托盘，不显示任务栏图标</small>
+        </span>
+        <input type="checkbox" ${settings.openAtLogin ? 'checked' : ''}>
+      </label>
+    </div>
+  `;
+
+  overlay.addEventListener('click', (event) => {
+    if (event.target === overlay) {
+      settingsOpen = false;
+      renderToday();
+    }
+  });
+
+  overlay.querySelector('.icon-button').addEventListener('click', () => {
+    settingsOpen = false;
+    renderToday();
+  });
+
+  overlay.querySelector('input').addEventListener('change', async (event) => {
+    settings = await api.setOpenAtLogin(event.target.checked);
+    renderToday();
+  });
+
+  return overlay;
 }
 
 function renderEditableTask(task) {
@@ -283,7 +335,12 @@ function renderDayCell(date) {
 }
 
 async function init() {
-  state = await api.getState();
+  const [nextState, startupSettings] = await Promise.all([
+    api.getState(),
+    api.getStartupSettings()
+  ]);
+  state = nextState;
+  settings = startupSettings;
   selectedDate = state.today;
   selectedMonth = firstDayOfMonth(fromDateKey(state.today));
   isHistoryView ? renderHistory() : renderToday();

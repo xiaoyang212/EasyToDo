@@ -10,6 +10,7 @@ let historyWindow;
 let tray;
 let storePath;
 let store = {};
+let isQuitting = false;
 
 const appIcon = path.join(__dirname, '..', 'build', 'icon.ico');
 
@@ -61,7 +62,37 @@ function broadcastState() {
   }
 }
 
-function createWindow() {
+function getStartupSettings() {
+  return {
+    openAtLogin: app.getLoginItemSettings().openAtLogin
+  };
+}
+
+function setOpenAtLogin(openAtLogin) {
+  app.setLoginItemSettings({
+    openAtLogin,
+    openAsHidden: true,
+    name: 'EasyToDo',
+    path: process.execPath
+  });
+  updateTrayMenu();
+  return getStartupSettings();
+}
+
+function showMainWindow() {
+  if (!mainWindow || mainWindow.isDestroyed()) {
+    createWindow({ showOnReady: true });
+    return;
+  }
+
+  mainWindow.setSkipTaskbar(true);
+  mainWindow.show();
+  mainWindow.focus();
+}
+
+function createWindow(options = {}) {
+  const { showOnReady = false } = options;
+
   mainWindow = new BrowserWindow({
     width: 380,
     height: 560,
@@ -71,7 +102,8 @@ function createWindow() {
     transparent: true,
     resizable: true,
     alwaysOnTop: true,
-    skipTaskbar: false,
+    skipTaskbar: true,
+    show: false,
     title: 'Todo List',
     icon: appIcon,
     backgroundColor: '#00000000',
@@ -85,9 +117,20 @@ function createWindow() {
   mainWindow.setAlwaysOnTop(true, 'screen-saver');
   mainWindow.loadFile(path.join(__dirname, 'index.html'));
 
+  if (showOnReady) {
+    mainWindow.once('ready-to-show', () => showMainWindow());
+  }
+
   mainWindow.on('minimize', (event) => {
     event.preventDefault();
     mainWindow.hide();
+  });
+
+  mainWindow.on('close', (event) => {
+    if (!isQuitting) {
+      event.preventDefault();
+      mainWindow.hide();
+    }
   });
 
   mainWindow.on('closed', () => {
@@ -111,6 +154,7 @@ function createHistoryWindow() {
     transparent: true,
     resizable: true,
     alwaysOnTop: true,
+    skipTaskbar: true,
     title: 'Todo History',
     icon: appIcon,
     backgroundColor: '#00000000',
@@ -135,34 +179,47 @@ function createTray() {
   const icon = nativeImage.createFromPath(appIcon);
 
   tray = new Tray(icon);
-  tray.setToolTip('Todo List');
+  tray.setToolTip('EasyToDo');
+  updateTrayMenu();
+
+  tray.on('click', () => {
+    if (!mainWindow || !mainWindow.isVisible()) {
+      showMainWindow();
+    } else {
+      mainWindow.hide();
+    }
+  });
+}
+
+function updateTrayMenu() {
+  if (!tray) {
+    return;
+  }
+
   tray.setContextMenu(Menu.buildFromTemplate([
     {
       label: '显示待办',
-      click: () => {
-        if (!mainWindow) {
-          createWindow();
-        }
-        mainWindow.show();
-        mainWindow.focus();
-      }
+      click: showMainWindow
     },
     {
       label: '查看历史',
       click: createHistoryWindow
     },
+    {
+      label: '开机自启',
+      type: 'checkbox',
+      checked: getStartupSettings().openAtLogin,
+      click: (item) => setOpenAtLogin(item.checked)
+    },
     { type: 'separator' },
     {
       label: '退出',
-      click: () => app.quit()
+      click: () => {
+        isQuitting = true;
+        app.quit();
+      }
     }
   ]));
-
-  tray.on('click', () => {
-    if (mainWindow) {
-      mainWindow.isVisible() ? mainWindow.hide() : mainWindow.show();
-    }
-  });
 }
 
 app.whenReady().then(() => {
@@ -173,17 +230,15 @@ app.whenReady().then(() => {
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {
-      createWindow();
+      createWindow({ showOnReady: true });
     } else if (mainWindow) {
-      mainWindow.show();
+      showMainWindow();
     }
   });
 });
 
-app.on('window-all-closed', () => {
-  if (process.platform !== 'darwin') {
-    app.quit();
-  }
+app.on('before-quit', () => {
+  isQuitting = true;
 });
 
 ipcMain.handle('tasks:get-state', () => publicState());
@@ -236,4 +291,10 @@ ipcMain.handle('window:close-history', (event) => {
 
 ipcMain.handle('window:open-history', () => {
   createHistoryWindow();
+});
+
+ipcMain.handle('settings:get-startup', () => getStartupSettings());
+
+ipcMain.handle('settings:set-open-at-login', (_event, openAtLogin) => {
+  return setOpenAtLogin(Boolean(openAtLogin));
 });

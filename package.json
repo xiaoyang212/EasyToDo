@@ -1,6 +1,6 @@
 {
   "name": "easy-to-do",
-  "version": "1.0.0",
+  "version": "1.0.1",
   "description": "A translucent always-on-top desktop todo list built with Electron.",
   "main": "src/main.js",
   "scripts": {
