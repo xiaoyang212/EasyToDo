@@ -1,0 +1,52 @@
+{
+  "name": "easy-to-do",
+  "version": "1.0.0",
+  "description": "A translucent always-on-top desktop todo list built with Electron.",
+  "main": "src/main.js",
+  "scripts": {
+    "start": "electron .",
+    "generate-icons": "node scripts/generate-icons.js",
+    "dist": "npm run generate-icons && electron-builder --win"
+  },
+  "keywords": [
+    "electron",
+    "todo",
+    "desktop"
+  ],
+  "author": "",
+  "license": "MIT",
+  "devDependencies": {
+    "electron": "^30.0.0",
+    "electron-builder": "^26.8.1"
+  },
+  "build": {
+    "appId": "com.easytodo.desktop",
+    "productName": "EasyToDo",
+    "directories": {
+      "output": "dist"
+    },
+    "files": [
+      "src/**/*",
+      "package.json",
+      "build/icon.ico"
+    ],
+    "win": {
+      "icon": "build/icon.ico",
+      "target": [
+        {
+          "target": "nsis",
+          "arch": [
+            "x64"
+          ]
+        }
+      ]
+    },
+    "nsis": {
+      "oneClick": false,
+      "allowToChangeInstallationDirectory": true,
+      "createDesktopShortcut": true,
+      "createStartMenuShortcut": true,
+      "shortcutName": "EasyToDo"
+    }
+  }
+}
