@@ -1,4 +1,4 @@
-const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage } = require('electron');
+const { app, BrowserWindow, Tray, Menu, ipcMain, nativeImage, powerMonitor } = require('electron');
 const path = require('path');
 const fs = require('fs');
 const { execFileSync } = require('child_process');
@@ -12,6 +12,7 @@ let tray;
 let storePath;
 let store = {};
 let isQuitting = false;
+let activeDateKey = dateKey();
 
 const appIcon = path.join(__dirname, '..', 'build', 'icon.ico');
 const hiddenStartupArg = '--hidden';
@@ -65,6 +66,14 @@ function broadcastState() {
   const state = publicState();
   for (const win of BrowserWindow.getAllWindows()) {
     win.webContents.send('tasks:updated', state);
+  }
+}
+
+function checkDateRollover() {
+  const nextDateKey = dateKey();
+  if (nextDateKey !== activeDateKey) {
+    activeDateKey = nextDateKey;
+    broadcastState();
   }
 }
 
@@ -190,6 +199,8 @@ function shouldStartHidden() {
 }
 
 function showMainWindow() {
+  checkDateRollover();
+
   if (!mainWindow || mainWindow.isDestroyed()) {
     createWindow({ showOnReady: true });
     return;
@@ -334,9 +345,12 @@ function updateTrayMenu() {
 
 app.whenReady().then(() => {
   storePath = path.join(app.getPath('userData'), 'tasks.json');
+  activeDateKey = dateKey();
   readStore();
   createTray();
   createWindow({ showOnReady: !shouldStartHidden() });
+  setInterval(checkDateRollover, 60 * 1000);
+  powerMonitor.on('resume', checkDateRollover);
 
   app.on('activate', () => {
     if (BrowserWindow.getAllWindows().length === 0) {

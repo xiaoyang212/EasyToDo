@@ -9,6 +9,7 @@ let settings = { openAtLogin: false };
 let settingsOpen = false;
 let selectedMonth = firstDayOfMonth(new Date());
 let selectedDate = state.today;
+let refreshTimer;
 
 function toDateKey(date) {
   const year = date.getFullYear();
@@ -334,23 +335,46 @@ function renderDayCell(date) {
   return cell;
 }
 
+function applyState(nextState) {
+  const previousToday = state.today;
+  state = nextState;
+
+  if (isHistoryView && selectedDate === previousToday && previousToday !== state.today) {
+    selectedDate = state.today;
+    selectedMonth = firstDayOfMonth(fromDateKey(state.today));
+  }
+}
+
+function renderCurrentView() {
+  isHistoryView ? renderHistory() : renderToday();
+}
+
+async function refreshState() {
+  applyState(await api.getState());
+  renderCurrentView();
+}
+
 async function init() {
   const [nextState, startupSettings] = await Promise.all([
     api.getState(),
     api.getStartupSettings()
   ]);
-  state = nextState;
+  applyState(nextState);
   settings = startupSettings;
   selectedDate = state.today;
   selectedMonth = firstDayOfMonth(fromDateKey(state.today));
-  isHistoryView ? renderHistory() : renderToday();
+  renderCurrentView();
 
   api.onTasksUpdated((nextState) => {
-    state = nextState;
-    if (!isHistoryView) {
-      renderToday();
-    } else {
-      renderHistory();
+    applyState(nextState);
+    renderCurrentView();
+  });
+
+  refreshTimer = setInterval(refreshState, 60 * 1000);
+  window.addEventListener('focus', refreshState);
+  document.addEventListener('visibilitychange', () => {
+    if (!document.hidden) {
+      refreshState();
     }
   });
 }

@@ -23,9 +23,9 @@ npm.cmd start
 npm.cmd run dist
 ```
 
-生成的安装包位于 `dist/EasyToDo Setup 1.0.1.exe`。
+生成的安装包位于 `dist/EasyToDo Setup 1.0.2.exe`。
 
-仓库中的 `release/EasyToDo Setup 1.0.1.exe` 是已打包好的 Windows 安装程序。
+仓库中的 `release/EasyToDo Setup 1.0.2.exe` 是已打包好的 Windows 安装程序。
 
 ## 设置
 
